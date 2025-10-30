@@ -1,6 +1,10 @@
 # CT2MRI
 심뇌혈관질환을 위한 초광역 연합 의료 AI 기술 개발 - CT2MRI
 
+## Environments
+`pip install -r requirements.txt`  
+
+
 ## Dataset 
 데이터 전처리 및 정합을 위한 코드는 `CT_MRI_slice_matcher_With_skullstrip.py` 이다.   
 HD-BET 패키지를 이용하여 진행했다.  
