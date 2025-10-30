@@ -16,14 +16,11 @@ pydicom==3.0.1
 ```
 
 
-
 ## Dataset Preprocessing
 데이터 전처리 및 정합을 위한 코드는 `CT_MRI_slice_matcher_With_skullstrip.py` 이다.   
-HD-BET 패키지를 이용하여 진행했다.  
-`pip install HD-BET` 
 
 
-모델 파라미터 다운로드를 위해 아래를 실행한다.    
+HD-BET 모델 파라미터 다운로드를 위해 아래를 실행한다.    
 `python -c "from HD_BET.checkpoint_download import maybe_download_parameters; maybe_download_parameters()"`  
 
 
@@ -37,3 +34,11 @@ python CT_MRI_slice_matcher_with_skullstrip.py \
   --mr_norm dicom \
   --b0_ww_adjust 1.8
 ```
+
+
+## Model Weight
+ldm 관련 weight는 링크🔗 **https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing **에서 받을 수 있다. `diffusion_model/` 폴더에 넣으면 된다. 
+**외부에서 받고 싶은 경우** https://github.com/CompVis/latent-diffusion.git 의 Model Zoo의 `kl-f4.zip`(autoencoder), `celeba.zip`(ldm)을 사용한다.
+
+의료 데이터에 ldm을 적용하고 싶다면, `diffusion_model/latent_diffusion.ipynb `를 실행하면 된다.
+
