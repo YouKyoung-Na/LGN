@@ -2,7 +2,20 @@
 심뇌혈관질환을 위한 초광역 연합 의료 AI 기술 개발 - CT2MRI
 
 ## Environments
+한번에 설치 : 
 `pip install -r requirements.txt`  
+
+
+따로 설치
+```
+nnunetv2==2.6.2
+freesurfer-stats==1.2.1
+monai==1.4.0
+HD_BET==2.0.1
+pydicom==3.0.1
+
+```
+
 
 
 ## Dataset Preprocessing
