@@ -5,7 +5,7 @@
 `pip install -r requirements.txt`  
 
 
-## Dataset 
+## Dataset Preprocessing
 데이터 전처리 및 정합을 위한 코드는 `CT_MRI_slice_matcher_With_skullstrip.py` 이다.   
 HD-BET 패키지를 이용하여 진행했다.  
 `pip install HD-BET` 
