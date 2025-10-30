@@ -37,6 +37,11 @@ python CT_MRI_slice_matcher_with_skullstrip.py \
 ```
 
 
+이후, `data_cert.py`를 통해 CT와 MRI이미지를 보고 두뇌의 하단/상단/뼈가 많은 부분을 제외시킨다.
+
+
+
+
 ## Model Weight
 [🔗 구글드라이브](https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing "Google Drive")**에서 다운로드 후, `diffusion_model/` 폴더에 넣는다.**
 
