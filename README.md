@@ -6,7 +6,7 @@
 HD-BET 패키지를 이용하여 진행했다.  
 `pip install HD-BET` 
 
-모델 파라미터 다운로드를 위해 아래를 실행한다.
+모델 파라미터 다운로드를 위해 아래를 실행한다.    
 `python -c "from HD_BET.checkpoint_download import maybe_download_parameters; maybe_download_parameters()"`  
 
 skull이 완전히 없어지지는 않지만, 많이 사라진다.
