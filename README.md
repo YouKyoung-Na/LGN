@@ -19,14 +19,13 @@ simpleitk==2.5.2
 
 ## Dataset Preprocessing
 ### 1. HD-BET 모델 다운로드
-데이터 전처리를 시작하기 전에 HD-BET 사전 학습 파라미터를 다운로드합니다.
+데이터 전처리를 시작하기 전에 HD-BET 사전 학습 파라미터를 다운로드합니다.  
+
 `python -c "from HD_BET.checkpoint_download import maybe_download_parameters; maybe_download_parameters()"`  
 
 ### 2. CT-MRI 정합 및 전처리
 `CT_MRI_slice_matcher_with_skullstrip.py`를 사용하여 DICOM 형식의 CT와 MRI 이미지를 정합하고 skull stripping을 수행합니다.
 
-
-**사용 예시:**
 ```
 python CT_MRI_slice_matcher_with_skullstrip.py \
   --ct_root CT/ct_microbleed_0 \
