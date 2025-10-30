@@ -13,6 +13,7 @@ freesurfer-stats==1.2.1
 monai==1.4.0
 HD_BET==2.0.1
 pydicom==3.0.1
+simpleitk==2.5.2
 ```
 
 
