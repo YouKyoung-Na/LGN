@@ -1,6 +1,77 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+
+사용법:
+python CT_MRI_slice_matcher_with_skullstrip.py \
+  --ct_root CT/ct_microbleed_0 \
+  --mr_root MRI/mri_microbleed_0/250218_0 \
+  --out_root ./skull_strip/no_bleed_ct_mri \
+  --skull_strip_method hdbet \
+  --mr_norm dicom \
+  --b0_ww_adjust 1.8
+
+python CT_MRI_slice_matcher_with_skullstrip.py \
+  --ct_root CT/ct_microbleed_1 \
+  --mr_root MRI/mri_microbleed_1/250217_1 \
+  --out_root ./skull_strip/bleed_ct_mri \
+  --skull_strip_method hdbet \
+  --mr_norm dicom \
+  --b0_ww_adjust 1.8
+
+threshold 방법 사용 예:
+
+python CT_MRI_slice_matcher_with_skullstrip.py \
+  --ct_root CT/ct_microbleed_0 \
+  --mr_root MRI/mri_microbleed_0/250218_0 \
+  --out_root ./skull_strip/no_bleed_ct_mri \
+  --skull_strip_method threshold \
+  --mr_norm dicom \
+  --b0_ww_adjust 1.8
+
+  python CT_MRI_slice_matcher_with_skullstrip.py \
+  --ct_root CT/ct_microbleed_1 \
+  --mr_root MRI/mri_microbleed_1/250217_1 \
+  --out_root ./skull_strip/bleed_ct_mri \
+  --skull_strip_method threshold \
+  --mr_norm dicom \
+  --b0_ww_adjust 1.8
+
+python CT_MRI_slice_matcher_with_skullstrip.py \
+  --ct_root CT/ct_microbleed_0 \
+  --mr_root MRI/mri_microbleed_0/250218_0 \
+  --out_root ./skull_strip/no_bleed_ct_mri \
+  --skull_strip_method threshold \
+  --ct_skull_threshold_low 15 \
+  --ct_skull_threshold_high 45 \
+  --ct_skull_erosion 8 \
+  --mr_norm dicom \
+  --b0_ww_adjust 1.8
+
+python CT_MRI_slice_matcher_with_skullstrip.py \
+    --ct_root CT/ct_microbleed_1 \
+    --mr_root MRI/mri_microbleed_1/250217_1 \
+    --out_root ./skull_strip/bleed_ct_mri \
+    --skull_strip_method threshold \
+    --ct_skull_threshold_low 15 \
+    --ct_skull_threshold_high 45 \
+    --ct_skull_erosion 8 \
+    --mr_norm dicom \
+    --b0_ww_adjust 1.8
+  
+python CT_MRI_slice_matcher_with_skullstrip.py \
+  --ct_root CT/ct_microbleed_0 \
+  --mr_root MRI/mri_microbleed_0/250218_0 \
+  --out_root ./skull_strip/no_bleed_ct_mri \
+  --skull_strip_method freesurfer \
+  --mr_norm dicom \
+  --b0_ww_adjust 1.8
+  
+"""
+
+
+
+"""
 CT_MRI_slice_matcher_with_skullstrip.py
 
 개선사항:
@@ -9,14 +80,6 @@ CT_MRI_slice_matcher_with_skullstrip.py
 - 정합 후 원본 이미지를 리샘플하되, brain mask 적용
 - 기존의 데이터 입/출력 및 정합 로직 유지
 
-사용법:
-python CT_MRI_slice_matcher_with_skullstrip.py \
-  --ct_root CT/ct_microbleed_1 \
-  --mr_root MRI/mri_microbleed_1/250217_1 \
-  --out_root ./output_with_skullstrip \
-  --skull_strip_method hdbet \
-  --mr_norm dicom \
-  --b0_ww_adjust 1.8
 """
 
 import os, sys, re, json, csv, argparse, logging
@@ -47,18 +110,49 @@ except Exception:
 
 # ---------------- HD-BET (optional) ----------------
 _HAS_HDBET = False
+_HDBET_ERROR = None
+
+# Add HD-BET to path if it exists locally
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+possible_hdbet_paths = [
+    os.path.join(current_dir, "HD-BET"),
+    os.path.join(os.path.dirname(current_dir), "HD-BET"),
+    os.path.expanduser("~/HD-BET"),
+    "./HD-BET",
+    "../HD-BET",
+]
+
+for path in possible_hdbet_paths:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
+        
 try:
-    from HD_BET.run import run_hd_bet
-    _HAS_HDBET = True
-except Exception:
-    pass
+    # Try multiple import methods
+    try:
+        from HD_BET.hd_bet_prediction import hdbet_predict, get_hdbet_predictor
+        _HAS_HDBET = True
+    except ImportError as e1:
+        try:
+            from hd_bet.hd_bet_prediction import hdbet_predict, get_hdbet_predictor
+            _HAS_HDBET = True
+        except ImportError as e2:
+            try:
+                import HD_BET
+                from HD_BET.hd_bet_prediction import hdbet_predict, get_hdbet_predictor
+                _HAS_HDBET = True
+            except ImportError as e3:
+                _HDBET_ERROR = f"Import failed: {e3}"
+except Exception as e:
+    _HDBET_ERROR = str(e)
 
 
 # ============================== DEFAULTS ==============================
 DEFAULTS = {
     "ct_root": "CT/ct_microbleed_0",
     "mr_root": "MRI/mri_microbleed_0/250218_0",
-    "out_root": "./no_bleed_ct_mri_skullstrip",
+    "out_root": "./no_bleed_ct_mri_final",
     "ct_window_center": 40.0,
     "ct_window_width": 80.0,
     "loglevel": "INFO",
@@ -130,80 +224,173 @@ def log_image_info(tag: str, img: sitk.Image):
 
 # ============================== SKULL STRIPPING ==============================
 
-def skull_strip_hdbet(img: sitk.Image, device: int = 0, mode: str = "fast") -> Tuple[sitk.Image, sitk.Image]:
+def skull_strip_freesurfer(img: sitk.Image, modality: str = "ct") -> Tuple[sitk.Image, sitk.Image]:
     """
-    HD-BET을 사용한 skull stripping
+    FreeSurfer mri_synthstrip을 사용한 skull stripping
     Returns: (brain_img, mask_img)
     """
-    if not _HAS_HDBET:
-        raise RuntimeError("HD-BET not available. Install with: pip install HD-BET")
-    
+    import subprocess
     import tempfile
+    
+    logging.info("Using FreeSurfer SynthStrip for skull stripping...")
+    
+    # FreeSurfer 설치 확인
+    try:
+        result = subprocess.run(['mri_synthstrip', '--help'], 
+                              capture_output=True, timeout=5)
+        if result.returncode != 0:
+            raise RuntimeError("mri_synthstrip not found")
+    except (subprocess.TimeoutExpired, FileNotFoundError, RuntimeError) as e:
+        raise RuntimeError(
+            "FreeSurfer mri_synthstrip not available.\n"
+            "Install FreeSurfer: https://surfer.nmr.mgh.harvard.edu/fswiki/DownloadAndInstall\n"
+            "Or use --skull_strip_method threshold"
+        )
+    
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input.nii.gz")
         output_path = os.path.join(tmpdir, "output.nii.gz")
-        mask_path = os.path.join(tmpdir, "output_mask.nii.gz")
+        mask_path = os.path.join(tmpdir, "mask.nii.gz")
         
-        # 저장
+        # NIfTI로 저장
         sitk.WriteImage(img, input_path)
         
-        # HD-BET 실행
+        # mri_synthstrip 실행
         try:
-            run_hd_bet(input_path, output_path, device=device, mode=mode, 
-                      tta=0, pp=1, save_mask=1)
+            cmd = [
+                'mri_synthstrip',
+                '-i', input_path,
+                '-o', output_path,
+                '-m', mask_path,
+            ]
+            
+            if modality.lower() == "ct":
+                # CT의 경우 추가 옵션 (있다면)
+                pass
+            
+            logging.info(f"  Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            
+            if result.returncode != 0:
+                logging.error(f"FreeSurfer error: {result.stderr}")
+                raise RuntimeError(f"mri_synthstrip failed: {result.stderr}")
             
             # 결과 로드
             brain_img = sitk.ReadImage(output_path)
             mask_img = sitk.ReadImage(mask_path)
             
+            # 마스크 통계
+            mask_arr = sitk.GetArrayFromImage(mask_img).astype(bool)
+            coverage = mask_arr.sum() / mask_arr.size * 100
+            logging.info(f"  FreeSurfer mask coverage: {coverage:.1f}%")
+            
             return brain_img, mask_img
+            
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("FreeSurfer mri_synthstrip timed out (>5min)")
         except Exception as e:
-            logging.error(f"HD-BET failed: {e}")
+            logging.error(f"FreeSurfer execution failed: {e}")
             raise
 
 
 def skull_strip_threshold_ct(ct_img: sitk.Image, 
-                              lower_threshold: float = -200.0,
-                              upper_threshold: float = 2000.0) -> Tuple[sitk.Image, sitk.Image]:
+                              lower_threshold: float = 10.0,
+                              upper_threshold: float = 60.0,
+                              erosion_size: int = 5) -> Tuple[sitk.Image, sitk.Image]:
     """
-    간단한 임계값 기반 CT skull stripping
+    개선된 임계값 기반 CT skull stripping
+    뇌 조직: 약 20-40 HU (회백질), 30-40 HU (백질)
+    
+    Args:
+        lower_threshold: 최소 HU (기본 10)
+        upper_threshold: 최대 HU (기본 60) - 더 낮추면 더 공격적
+        erosion_size: erosion 크기 (기본 5) - 더 크면 더 공격적
+    
     Returns: (brain_img, mask_img)
     """
     logging.info("Using threshold-based skull stripping for CT...")
     
-    # 1. Threshold를 이용한 초기 마스크
     arr = sitk.GetArrayFromImage(ct_img)
+    logging.info(f"  CT HU range: {arr.min():.1f} ~ {arr.max():.1f}")
     
-    # Brain tissue는 대략 0-100 HU
-    brain_mask = (arr > lower_threshold) & (arr < upper_threshold)
+    # 1. Brain tissue 임계값
+    # Skull은 보통 300+ HU이므로 제외됨
+    brain_mask = (arr >= lower_threshold) & (arr <= upper_threshold)
     
-    # 2. Morphological operations로 정제
+    logging.info(f"  Threshold: {lower_threshold} ~ {upper_threshold} HU")
+    logging.info(f"  Initial mask coverage: {brain_mask.sum() / brain_mask.size * 100:.1f}%")
+    
+    # 2. SimpleITK 이미지로 변환
     mask_img = sitk.GetImageFromArray(brain_mask.astype(np.uint8))
     mask_img.CopyInformation(ct_img)
     
-    # Closing으로 홀 채우기
-    mask_img = sitk.BinaryMorphologicalClosing(mask_img, [5, 5, 5])
+    # 3. Fill holes first (뇌 내부 홀 채우기)
+    mask_img = sitk.BinaryMorphologicalClosing(mask_img, [15, 15, 5])
     
-    # 가장 큰 연결 성분만 유지 (뇌)
+    # 4. Remove small objects
+    mask_img = sitk.BinaryMorphologicalOpening(mask_img, [3, 3, 1])
+    
+    # 5. 가장 큰 연결 성분만 유지 (뇌)
     cc_filter = sitk.ConnectedComponentImageFilter()
     cc_img = cc_filter.Execute(mask_img)
     
-    stats_filter = sitk.LabelShapeStatisticsImageFilter()
-    stats_filter.Execute(cc_img)
+    num_components = cc_filter.GetObjectCount()
+    logging.info(f"  Found {num_components} connected components")
     
-    if cc_filter.GetObjectCount() > 0:
-        # 가장 큰 component 찾기
+    if num_components > 0:
+        stats_filter = sitk.LabelShapeStatisticsImageFilter()
+        stats_filter.Execute(cc_img)
         labels = stats_filter.GetLabels()
+        
         if labels:
-            largest_label = max(labels, key=lambda l: stats_filter.GetNumberOfPixels(l))
-            mask_img = (cc_img == largest_label)
+            # 크기와 위치를 고려하여 뇌 선택
+            img_size = cc_img.GetSize()
+            img_center = [img_size[0]//2, img_size[1]//2, img_size[2]//2]
+            
+            best_label = None
+            best_score = -1
+            
+            for label in labels:
+                size = stats_filter.GetNumberOfPixels(label)
+                centroid = stats_filter.GetCentroid(label)
+                
+                # 중앙으로부터의 거리
+                dist = np.sqrt(sum((centroid[i] - img_center[i])**2 for i in range(3)))
+                
+                # 점수: 크기 우선, 중앙 근접도 가산
+                size_score = size
+                center_score = 1000 / (dist + 1)
+                total_score = size_score + center_score * 1000
+                
+                if total_score > best_score:
+                    best_score = total_score
+                    best_label = label
+            
+            if best_label:
+                mask_img = (cc_img == best_label)
+                logging.info(f"  Kept component (label {best_label})")
     
-    # Opening으로 경계 다듬기
-    mask_img = sitk.BinaryMorphologicalOpening(mask_img, [3, 3, 3])
+    # 6. Aggressive erosion to remove skull edges
+    logging.info(f"  Applying erosion with size {erosion_size}")
+    mask_img = sitk.BinaryErode(mask_img, [erosion_size, erosion_size, max(2, erosion_size//2)])
     
-    # 3. 마스크 적용
-    mask_arr = sitk.GetArrayFromImage(mask_img)
-    brain_arr = arr * mask_arr
+    # 7. Smooth boundaries
+    mask_img = sitk.BinaryMorphologicalClosing(mask_img, [8, 8, 3])
+    
+    # 8. Dilate back slightly (but not to original size)
+    dilate_size = max(2, erosion_size - 2)
+    mask_img = sitk.BinaryDilate(mask_img, [dilate_size, dilate_size, 1])
+    
+    # 9. Final smoothing
+    mask_img = sitk.BinaryMorphologicalOpening(mask_img, [2, 2, 1])
+    
+    # 10. 최종 마스크 확인
+    final_mask_arr = sitk.GetArrayFromImage(mask_img).astype(bool)
+    logging.info(f"  Final mask coverage: {final_mask_arr.sum() / final_mask_arr.size * 100:.1f}%")
+    
+    # 11. 마스크 적용
+    brain_arr = arr.copy()
+    brain_arr[~final_mask_arr] = -1024  # 배경을 공기 HU로
     
     brain_img = sitk.GetImageFromArray(brain_arr)
     brain_img.CopyInformation(ct_img)
@@ -213,12 +400,13 @@ def skull_strip_threshold_ct(ct_img: sitk.Image,
 
 def skull_strip_threshold_mri(mri_img: sitk.Image) -> Tuple[sitk.Image, sitk.Image]:
     """
-    간단한 임계값 기반 MRI skull stripping
+    개선된 임계값 기반 MRI skull stripping
     Returns: (brain_img, mask_img)
     """
     logging.info("Using threshold-based skull stripping for MRI...")
     
     arr = sitk.GetArrayFromImage(mri_img)
+    logging.info(f"  MRI intensity range: {arr.min():.1f} ~ {arr.max():.1f}")
     
     # 1. Otsu thresholding으로 초기 분리
     otsu_filter = sitk.OtsuThresholdImageFilter()
@@ -226,28 +414,77 @@ def skull_strip_threshold_mri(mri_img: sitk.Image) -> Tuple[sitk.Image, sitk.Ima
     otsu_filter.SetOutsideValue(1)
     mask_img = otsu_filter.Execute(mri_img)
     
-    # 2. Morphological operations
-    mask_img = sitk.BinaryMorphologicalClosing(mask_img, [5, 5, 5])
+    threshold_value = otsu_filter.GetThreshold()
+    logging.info(f"  Otsu threshold: {threshold_value:.1f}")
     
-    # 3. 가장 큰 연결 성분 유지
+    mask_arr = sitk.GetArrayFromImage(mask_img).astype(bool)
+    logging.info(f"  Initial mask coverage: {mask_arr.sum() / mask_arr.size * 100:.1f}%")
+    
+    # 2. Fill holes
+    mask_img = sitk.BinaryMorphologicalClosing(mask_img, [15, 15, 5])
+    
+    # 3. Remove small objects
+    mask_img = sitk.BinaryMorphologicalOpening(mask_img, [3, 3, 1])
+    
+    # 4. 가장 큰 연결 성분 유지
     cc_filter = sitk.ConnectedComponentImageFilter()
     cc_img = cc_filter.Execute(mask_img)
     
-    stats_filter = sitk.LabelShapeStatisticsImageFilter()
-    stats_filter.Execute(cc_img)
+    num_components = cc_filter.GetObjectCount()
+    logging.info(f"  Found {num_components} connected components")
     
-    if cc_filter.GetObjectCount() > 0:
+    if num_components > 0:
+        stats_filter = sitk.LabelShapeStatisticsImageFilter()
+        stats_filter.Execute(cc_img)
         labels = stats_filter.GetLabels()
+        
         if labels:
-            largest_label = max(labels, key=lambda l: stats_filter.GetNumberOfPixels(l))
-            mask_img = (cc_img == largest_label)
+            # 중앙에 있고 적절한 크기의 component 선택
+            img_size = cc_img.GetSize()
+            img_center = [img_size[0]//2, img_size[1]//2, img_size[2]//2]
+            
+            best_label = None
+            best_score = -1
+            
+            for label in labels:
+                size = stats_filter.GetNumberOfPixels(label)
+                centroid = stats_filter.GetCentroid(label)
+                
+                # 중앙으로부터의 거리
+                dist = np.sqrt(sum((centroid[i] - img_center[i])**2 for i in range(3)))
+                
+                # 점수: 크기 우선, 중앙 근접도 가산
+                size_score = size
+                center_score = 1000 / (dist + 1)
+                total_score = size_score + center_score * 1000
+                
+                if total_score > best_score:
+                    best_score = total_score
+                    best_label = label
+            
+            if best_label:
+                mask_img = (cc_img == best_label)
+                logging.info(f"  Kept component (label {best_label})")
     
-    # 4. Opening
-    mask_img = sitk.BinaryMorphologicalOpening(mask_img, [3, 3, 3])
+    # 5. Aggressive erosion to remove skull/scalp
+    mask_img = sitk.BinaryErode(mask_img, [6, 6, 2])
     
-    # 5. 마스크 적용
-    mask_arr = sitk.GetArrayFromImage(mask_img)
-    brain_arr = arr * mask_arr
+    # 6. Smooth boundaries
+    mask_img = sitk.BinaryMorphologicalClosing(mask_img, [8, 8, 3])
+    
+    # 7. Dilate back slightly
+    mask_img = sitk.BinaryDilate(mask_img, [4, 4, 1])
+    
+    # 8. Final smoothing
+    mask_img = sitk.BinaryMorphologicalOpening(mask_img, [2, 2, 1])
+    
+    # 9. 최종 마스크 확인
+    final_mask_arr = sitk.GetArrayFromImage(mask_img).astype(bool)
+    logging.info(f"  Final mask coverage: {final_mask_arr.sum() / final_mask_arr.size * 100:.1f}%")
+    
+    # 10. 마스크 적용
+    brain_arr = arr.copy()
+    brain_arr[~final_mask_arr] = 0
     
     brain_img = sitk.GetImageFromArray(brain_arr)
     brain_img.CopyInformation(mri_img)
@@ -255,16 +492,135 @@ def skull_strip_threshold_mri(mri_img: sitk.Image) -> Tuple[sitk.Image, sitk.Ima
     return brain_img, mask_img
 
 
+def skull_strip_hdbet(img: sitk.Image, device: int = 0, mode: str = "fast") -> Tuple[sitk.Image, sitk.Image]:
+    """
+    HD-BET을 사용한 skull stripping
+    Returns: (brain_img, mask_img)
+    """
+    if not _HAS_HDBET:
+        error_msg = "HD-BET not available.\n"
+        if _HDBET_ERROR:
+            error_msg += f"Error: {_HDBET_ERROR}\n"
+        error_msg += "\nTroubleshooting:\n"
+        error_msg += "1. Check installation: python -c \"import HD_BET; print(HD_BET.__file__)\"\n"
+        error_msg += "2. Try: pip install --upgrade HD-BET\n"
+        error_msg += "3. Or install from source:\n"
+        error_msg += "   git clone https://github.com/MIC-DKFZ/HD-BET.git\n"
+        error_msg += "   cd HD-BET && pip install -e .\n"
+        error_msg += "4. Restart your Python kernel/terminal after installation\n"
+        error_msg += "\nAlternatively, use --skull_strip_method threshold"
+        raise RuntimeError(error_msg)
+    
+    logging.info(f"Using HD-BET for skull stripping...")
+    
+    import tempfile
+    import torch
+    
+    # device 설정
+    if device >= 0 and torch.cuda.is_available():
+        torch_device = torch.device(f'cuda:{device}')
+        logging.info(f"  Using GPU device: {device}")
+    else:
+        torch_device = torch.device('cpu')
+        logging.info(f"  Using CPU")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = os.path.join(tmpdir, "input.nii.gz")
+        output_path = os.path.join(tmpdir, "output.nii.gz")
+        
+        # 저장
+        sitk.WriteImage(img, input_path)
+        
+        # HD-BET 실행
+        try:
+            logging.info(f"  Initializing HD-BET predictor...")
+            
+            # predictor 생성
+            use_tta = (mode == "accurate")  # accurate 모드면 TTA 사용
+            predictor = get_hdbet_predictor(
+                use_tta=use_tta,
+                device=torch_device,
+                verbose=False
+            )
+            
+            logging.info(f"  Running hdbet_predict on {input_path}")
+            
+            # hdbet_predict 함수 호출
+            hdbet_predict(
+                input_path,
+                output_path,
+                predictor,
+                keep_brain_mask=True,  # 마스크 저장
+                compute_brain_extracted_image=True  # brain 이미지 생성
+            )
+            
+            # 결과 파일 확인
+            output_dir = os.path.dirname(output_path)
+            generated_files = [f for f in os.listdir(output_dir) if f.endswith('.nii.gz')]
+            logging.info(f"  Generated files: {generated_files}")
+            
+            # 출력 파일명 패턴
+            # output.nii.gz (brain extracted image)
+            # output_bet.nii.gz (brain mask)
+            brain_file = output_path
+            mask_file = output_path[:-7] + '_bet.nii.gz'
+            
+            # brain 이미지 로드
+            if not os.path.exists(brain_file):
+                logging.error(f"HD-BET output not found: {brain_file}")
+                logging.error(f"Available files: {generated_files}")
+                raise RuntimeError("HD-BET did not produce expected output")
+            
+            logging.info(f"  Found brain image: {os.path.basename(brain_file)}")
+            brain_img = sitk.ReadImage(brain_file)
+            
+            # mask 이미지 로드
+            if os.path.exists(mask_file):
+                logging.info(f"  Found mask image: {os.path.basename(mask_file)}")
+                mask_img = sitk.ReadImage(mask_file)
+            else:
+                # 마스크가 없으면 brain 이미지로부터 생성
+                logging.warning("HD-BET mask not found, creating from brain output")
+                brain_arr = sitk.GetArrayFromImage(brain_img)
+                orig_arr = sitk.GetArrayFromImage(img)
+                
+                # brain 이미지가 이미 마스킹되어 있는 경우 (값이 0인 부분이 마스크 외부)
+                mask_arr = (brain_arr != 0).astype(np.uint8)
+                
+                # 만약 brain과 원본이 거의 같다면 (마스킹이 안된 경우), threshold 사용
+                if np.allclose(brain_arr, orig_arr, rtol=0.01):
+                    logging.warning("  Brain image not masked, using threshold to create mask")
+                    mask_arr = (orig_arr > orig_arr.mean() * 0.1).astype(np.uint8)
+                
+                mask_img = sitk.GetImageFromArray(mask_arr)
+                mask_img.CopyInformation(img)
+            
+            # 마스크 통계
+            mask_arr = sitk.GetArrayFromImage(mask_img).astype(bool)
+            coverage = mask_arr.sum() / mask_arr.size * 100
+            logging.info(f"  HD-BET mask coverage: {coverage:.1f}%")
+            
+            return brain_img, mask_img
+            
+        except Exception as e:
+            logging.error(f"HD-BET execution failed: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            raise
+
+
 def apply_skull_stripping(img: sitk.Image, 
                           method: str = "threshold",
-                          modality: str = "ct") -> Tuple[sitk.Image, sitk.Image]:
+                          modality: str = "ct",
+                          **kwargs) -> Tuple[sitk.Image, sitk.Image]:
     """
     통합 skull stripping 함수
     
     Args:
         img: 입력 이미지
-        method: 'hdbet', 'threshold', 'none'
+        method: 'freesurfer', 'hdbet', 'threshold', 'none'
         modality: 'ct' or 'mri'
+        **kwargs: threshold parameters (lower_threshold, upper_threshold, erosion_size)
     
     Returns:
         (brain_img, mask_img)
@@ -276,12 +632,15 @@ def apply_skull_stripping(img: sitk.Image,
         mask_img.CopyInformation(img)
         return img, mask_img
     
+    elif method == "freesurfer":
+        return skull_strip_freesurfer(img, modality)
+    
     elif method == "hdbet":
         return skull_strip_hdbet(img)
     
     elif method == "threshold":
         if modality.lower() == "ct":
-            return skull_strip_threshold_ct(img)
+            return skull_strip_threshold_ct(img, **kwargs)
         else:  # mri
             return skull_strip_threshold_mri(img)
     
@@ -706,6 +1065,9 @@ def save_ct_axial(ct_LPS: sitk.Image,
     arr = sitk.GetArrayFromImage(ct_LPS)
     mask_arr = sitk.GetArrayFromImage(ct_mask).astype(bool)
     
+    logging.info(f"  CT array shape: {arr.shape}, mask shape: {mask_arr.shape}")
+    logging.info(f"  Mask coverage: {mask_arr.sum() / mask_arr.size * 100:.1f}%")
+    
     # 마스크 적용 (배경을 HU -1000으로)
     arr_masked = arr.copy()
     arr_masked[~mask_arr] = -1000
@@ -716,6 +1078,9 @@ def save_ct_axial(ct_LPS: sitk.Image,
     # 마스크 다시 적용 (배경을 검은색으로)
     for k in range(arr8.shape[0]):
         arr8[k][~mask_arr[k]] = 0
+    
+    # 첫 번째 슬라이스 확인
+    logging.info(f"  First slice - masked pixels: {(~mask_arr[arr8.shape[0]//2]).sum()} / {mask_arr[0].size}")
     
     size, spacing = ct_LPS.GetSize(), ct_LPS.GetSpacing()
     cx, cy = size[0]//2, size[1]//2
@@ -748,6 +1113,9 @@ def save_mr_on_ct_grid_improved(mr_reg_on_ct: sitk.Image,
     arr = sitk.GetArrayFromImage(mr_reg_on_ct)
     mask_arr = sitk.GetArrayFromImage(ct_mask_on_ct).astype(bool)
     
+    logging.info(f"  [{tag}] array shape: {arr.shape}, mask shape: {mask_arr.shape}")
+    logging.info(f"  [{tag}] Mask coverage: {mask_arr.sum() / mask_arr.size * 100:.1f}%")
+    
     size, spacing = mr_reg_on_ct.GetSize(), mr_reg_on_ct.GetSpacing()
     cx, cy = size[0]//2, size[1]//2
     z_list = [float(mr_reg_on_ct.TransformIndexToPhysicalPoint([cx,cy,k])[2]) for k in range(size[2])]
@@ -769,6 +1137,8 @@ def save_mr_on_ct_grid_improved(mr_reg_on_ct: sitk.Image,
     # 마스크 적용 - 슬라이스별로 배경을 검은색(0)으로
     for k in range(arr8.shape[0]):
         arr8[k][~mask_arr[k]] = 0
+    
+    logging.info(f"  [{tag}] First slice - masked pixels: {(~mask_arr[arr8.shape[0]//2]).sum()} / {mask_arr[0].size}")
 
     info=[]
     for k in range(size[2]):
@@ -807,10 +1177,18 @@ def main():
     ap.add_argument("--adc_ww_adjust", type=float, default=1.0)
     
     # Skull stripping 옵션
-    ap.add_argument("--skull_strip_method", choices=["hdbet", "threshold", "none"], default="threshold",
-                   help="Skull stripping method (default: threshold)")
+    ap.add_argument("--skull_strip_method", choices=["freesurfer", "hdbet", "threshold", "none"], default="threshold",
+                   help="Skull stripping method (default: threshold, freesurfer recommended if installed)")
     ap.add_argument("--skull_strip_save_mask", action="store_true", default=True,
                    help="Save brain masks as NIfTI files")
+    
+    # Threshold 방법 세부 조정 옵션
+    ap.add_argument("--ct_skull_threshold_low", type=float, default=10.0,
+                   help="CT skull stripping lower HU threshold (default: 10)")
+    ap.add_argument("--ct_skull_threshold_high", type=float, default=60.0,
+                   help="CT skull stripping upper HU threshold (default: 60, lower=more aggressive)")
+    ap.add_argument("--ct_skull_erosion", type=int, default=5,
+                   help="CT skull stripping erosion size (default: 5, higher=more aggressive)")
     
     args = ap.parse_args()
 
@@ -835,6 +1213,9 @@ def main():
     cfg["adc_ww_adjust"] = args.adc_ww_adjust
     cfg["skull_strip_method"] = args.skull_strip_method
     cfg["skull_strip_save_mask"] = args.skull_strip_save_mask
+    cfg["ct_skull_threshold_low"] = args.ct_skull_threshold_low
+    cfg["ct_skull_threshold_high"] = args.ct_skull_threshold_high
+    cfg["ct_skull_erosion"] = args.ct_skull_erosion
 
     logging.basicConfig(level=getattr(logging, cfg["loglevel"].upper(), logging.INFO),
                         format="%(asctime)s | %(levelname)s | %(message)s")
@@ -911,7 +1292,14 @@ def main():
 
         # ---- Skull Stripping ----
         logging.info(f"[{pid}] Skull stripping CT...")
-        ct_brain, ct_mask = apply_skull_stripping(ct_LPS, cfg["skull_strip_method"], "ct")
+        ct_brain, ct_mask = apply_skull_stripping(
+            ct_LPS, 
+            cfg["skull_strip_method"], 
+            "ct",
+            lower_threshold=cfg.get("ct_skull_threshold_low", 10.0),
+            upper_threshold=cfg.get("ct_skull_threshold_high", 60.0),
+            erosion_size=cfg.get("ct_skull_erosion", 5)
+        )
         
         logging.info(f"[{pid}] Skull stripping MRI b0...")
         b0_brain, b0_mask = apply_skull_stripping(b0_LPS, cfg["skull_strip_method"], "mri")
