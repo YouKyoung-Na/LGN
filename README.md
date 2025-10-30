@@ -6,11 +6,12 @@
 HD-BET 패키지를 이용하여 진행했다.  
 `pip install HD-BET` 
 
+
 모델 파라미터 다운로드를 위해 아래를 실행한다.    
 `python -c "from HD_BET.checkpoint_download import maybe_download_parameters; maybe_download_parameters()"`  
 
-skull이 완전히 없어지지는 않지만, 많이 사라진다.
 
+DICOM형태의 의료 이미지를 입력으로 받아 실행이된다.
 ```
 python CT_MRI_slice_matcher_with_skullstrip.py \
   --ct_root CT/ct_microbleed_0 \
