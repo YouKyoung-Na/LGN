@@ -24,7 +24,7 @@ HD-BET 모델 파라미터 다운로드를 위해 아래를 실행한다.
 `python -c "from HD_BET.checkpoint_download import maybe_download_parameters; maybe_download_parameters()"`  
 
 
-DICOM형태의 의료 이미지를 입력으로 받아 실행이된다.
+DICOM형태의 의료 이미지를 입력으로 받아 실행된다.
 ```
 python CT_MRI_slice_matcher_with_skullstrip.py \
   --ct_root CT/ct_microbleed_0 \
@@ -37,7 +37,8 @@ python CT_MRI_slice_matcher_with_skullstrip.py \
 
 
 ## Model Weight
-ldm 관련 weight는 링크🔗 **https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing **에서 받을 수 있다. `diffusion_model/` 폴더에 넣으면 된다. 
+**ldm 관련 weight는 링크 🔗** https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing 에서 다운로드 후, `diffusion_model/` 폴더에 넣는다.  
+  
 **외부에서 받고 싶은 경우** https://github.com/CompVis/latent-diffusion.git 의 Model Zoo의 `kl-f4.zip`(autoencoder), `celeba.zip`(ldm)을 사용한다.
 
 의료 데이터에 ldm을 적용하고 싶다면, `diffusion_model/latent_diffusion.ipynb `를 실행하면 된다.
