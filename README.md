@@ -17,7 +17,7 @@ pydicom==3.0.1
 
 
 ## Dataset Preprocessing
-데이터 전처리 및 정합을 위한 코드는 `CT_MRI_slice_matcher_With_skullstrip.py` 이다.   
+데이터 전처리 및 정합을 위한 코드는 `CT_MRI_slice_matcher_with_skullstrip.py` 이다.   
 
 
 HD-BET 모델 파라미터 다운로드를 위해 아래를 실행한다.    
