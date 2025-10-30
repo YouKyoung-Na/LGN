@@ -37,10 +37,10 @@ python CT_MRI_slice_matcher_with_skullstrip.py \
 
 
 ## Model Weight
-[🔗 구글드라이브](https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing "Google Drive")에서 다운로드 후, **`diffusion_model/` 폴더에 넣는다.**
+[🔗 구글드라이브](https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing "Google Drive")**에서 다운로드 후, `diffusion_model/` 폴더에 넣는다.**
 
 **또는,** [공식 사이트](https://github.com/CompVis/latent-diffusion.git "https://github.com/CompVis/latent-diffusion.git")의 Model Zoo의 `kl-f4.zip`(autoencoder), `celeba.zip`(ldm)을 사용한다.
 
 
-의료 데이터에 ldm을 적용하고 싶다면, `diffusion_model/latent_diffusion.ipynb `를 실행하면 된다.
+의료 데이터에 ldm을 적용하고 싶다면, `diffusion_model/latent_diffusion.ipynb`를 실행하면 된다.
 
