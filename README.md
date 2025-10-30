@@ -62,7 +62,7 @@ python data_cert.py \
 
 
 ## Model
-### Weight Download
+### 가중치 다운로드
 1. **Google Drive에서 다운로드** (권장)  
    [🔗 Google Drive 링크](https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing)에서 다운로드 후 `diffusion_model/` 폴더에 배치
 
