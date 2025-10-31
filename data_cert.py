@@ -7,6 +7,9 @@
 
 사용법: 
 python data_cert.py --root /path/to/dataset --start_case 0 --start_index 0
+python data_cert.py --root ./skull_strip/no_bleed_ct_mri --start_case 0 --start_index 0 --save-csv ./exclusions_no_bleed_yk.csv
+python data_cert.py --root ./skull_strip/bleed_ct_mri --start_case 0 --start_index 0 --save-csv ./exclusions_bleed_yk.csv
+
 """
 
 import argparse
@@ -123,7 +126,7 @@ def collect_cases(root: Path) -> List[Path]:
     """
     root 하위의 CNUH_X_* 폴더들을 수집
     """
-    return sorted([p for p in root.iterdir() if p.is_dir() and p.name.startswith("CNUH_X_")])
+    return sorted([p for p in root.iterdir() if p.is_dir() and p.name.startswith("CNUH_")])
 
 def scan_case(case_dir: Path, match_mode: str) -> List[Tuple[Path, Path, Path, Path]]:
     ct = sorted_images_in(case_dir / "ct_axial")
