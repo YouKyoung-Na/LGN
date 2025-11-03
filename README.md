@@ -16,6 +16,9 @@ pydicom==3.0.1
 simpleitk==2.5.2
 ```
 
+#### uv를 활용한 설치:
+`uv sync`
+
 
 ## Dataset Preprocessing
 ### 1. HD-BET 모델 다운로드
