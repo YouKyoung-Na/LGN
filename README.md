@@ -17,6 +17,9 @@ simpleitk==2.5.2
 ```
 
 #### uv를 활용한 설치:
+`pip install uv` 이후,
+
+
 `uv sync`
 
 
