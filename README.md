@@ -1,12 +1,12 @@
-# CT2MRI
-심뇌혈관질환을 위한 초광역 연합 의료 AI 기술 개발 - CT2MRI
+# Learning from Good Neighbors: Slice-Aware CT-to-Diffusion MRI Synthesis
+MICCAI 2026
 
 ## Environments
-#### 한번에 설치 : 
+#### Install all at once:
 `pip install -r requirements.txt`  
 
 
-#### 따로 설치 : 
+#### Install individually:
 ```
 nnunetv2==2.6.2
 freesurfer-stats==1.2.1
@@ -16,21 +16,22 @@ pydicom==3.0.1
 simpleitk==2.5.2
 ```
 
-#### uv를 활용한 설치:
-`pip install uv` 이후,
+#### Installation using uv:
+After running `pip install uv`,
 
 
 `uv sync`
 
 
 ## Dataset Preprocessing
-### 1. HD-BET 모델 다운로드
-데이터 전처리를 시작하기 전에 HD-BET 사전 학습 파라미터를 다운로드합니다.  
+### 1. Download HD-BET Model
+Download the HD-BET pre-trained parameters before starting data preprocessing.
+
 
 `python -c "from HD_BET.checkpoint_download import maybe_download_parameters; maybe_download_parameters()"`  
 
-### 2. CT-MRI 정합 및 전처리
-`CT_MRI_slice_matcher_with_skullstrip.py`를 사용하여 DICOM 형식의 CT와 MRI 이미지를 정합하고 skull stripping을 수행합니다.
+### 2. CT-MRI Registration and Preprocessing
+Register CT and MRI images in DICOM format and perform skull stripping using `CT_MRI_slice_matcher_with_skullstrip.py`
 
 ```
 python CT_MRI_slice_matcher_with_skullstrip.py \
@@ -43,8 +44,8 @@ python CT_MRI_slice_matcher_with_skullstrip.py \
 ```
 
 
-### 3. 데이터 품질 검사 (QC)
-`data_cert.py`를 사용하여 CT와 MRI 이미지를 시각적으로 확인하고, 저품질 이미지(두뇌 상단/하단, 뼈가 많은 슬라이스 등)를 제외 목록으로 저장합니다.
+### 3. Data Quality Control (QC)
+Visually inspect the CT and MRI images using `data_cert.py` and save low-quality images (top/bottom of the brain, bone-heavy slices, etc.) to an exclusion list.
 ```
 python data_cert.py \
   --root ./skull_strip/no_bleed_ct_mri \
@@ -54,48 +55,65 @@ python data_cert.py \
 ```
 
 
-**키보드 단축키:**
-- `A/D/방향키`: 이전/다음 이미지
-- `E`: 현재 이미지 제외/포함 토글
-- `S`: 제외 목록을 CSV로 저장
-- `H/?`: 도움말 표시/숨김
-- `Q`: 종료 (자동 저장)
+**Keyboard Shortcuts:**
+- `A/D/방향키`: Previous / Next image
+- `E`: Toggle exclusion / inclusion of current image
+- `S`: Save exclusion list to CSV
+- `H/?`: Show / Hide help
+- `Q`: Exit (Auto-save)
 
 
-### 4. 최종 데이터셋 생성
-`data_postprocessing.ipynb`를 실행하여 QC에서 제외된 이미지를 필터링하고 최종 학습 데이터셋을 생성합니다.
+### 4. Final Dataset Generation
+Run `data_postprocessing.ipynb` to filter out images excluded in QC and generate the final training dataset.
 
 
 
 ## Model
-### 가중치 다운로드
-1. **Google Drive에서 다운로드** (권장)  
-   [🔗 Google Drive 링크](https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing)에서 다운로드 후 `diffusion_model/` 폴더에 배치
+### Download Weights
+1. **Download from Google Drive** (Recommended)  
+   Download from the [🔗 Google Drive 링크](https://drive.google.com/drive/folders/1j3K79B5kJi28BA2bQ83YJW7bhGdqSs_f?usp=sharing) and place it in the `diffusion_model/` folder.
 
-2. **공식 저장소에서 다운로드**  
-   [Latent Diffusion 공식 저장소](https://github.com/CompVis/latent-diffusion)의 Model Zoo에서:
-   - `kl-f4.zip`: Autoencoder 모델
-   - `celeba.zip`: LDM 모델
+2. **Download from Official Repository**  
+   From the Model Zoo of the [Latent Diffusion 공식 저장소](https://github.com/CompVis/latent-diffusion):
+   - `kl-f4.zip`: Autoencoder Model
+   - `celeba.zip`: LDM Model
 
 
-### 학습 및 적용
-의료 데이터에 Latent Diffusion Model을 적용하려면 `diffusion_model/latent_diffusion.ipynb`를 실행하세요.
+### Training and Application
+Run `diffusion_model/latent_diffusion.ipynb` to apply the Latent Diffusion Model to medical data.
 
 
 
 ## Project Structure
 ```
 CT2MRI/
-├── CT_MRI_slice_matcher_with_skullstrip.py  # 데이터 전처리 및 정합
-├── data_cert.py                               # 품질 검사 도구
-├── data_postprocessing.ipynb                  # 최종 데이터셋 생성
+├── CT_MRI_slice_matcher_with_skullstrip.py  # 데이터 전처리 및 정합, Data preprocessing and registration
+├── data_cert.py                               # 품질 검사 도구, Quality check tool
+├── data_postprocessing.ipynb                  # 최종 데이터셋 생성, Final dataset generation
 ├── diffusion_model/
-│   └── latent_diffusion.ipynb                # LDM 학습/추론
-└── requirements.txt                           # 필수 패키지 목록
+│   └── latent_diffusion.ipynb                # LDM 학습/추론, LDM training / inference
+└── requirements.txt                           # 필수 패키지 목록, List of required packages
 ```
 
 
+## BibTex
+```
+BibTex
+@InProceedings{NaYou_Learning_MICCAI2026,
+        author = { Na, You-Kyoung AND Choi, Kang-Ho AND Yang, Hyung-Jeong AND Kim, Jahae AND Cho, Yeong-Jun},
+        title = { { Learning from Good Neighbors: Slice-wise Quality-aware CT-to-Diffusion MRI Synthesis } },
+        booktitle = {Medical Image Computing and Computer Assisted Intervention -- MICCAI 2026},
+        year = {2026},
+        publisher = {Springer Nature Switzerland},
+        volume = {LNCS 16890},
+        month = {September},
+        page = {pending}
+}
+```
 
 ## References
+- [HD-BET: Automated Brain Extraction](https://github.com/MIC-DKFZ/HD-BET)
+- [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion)
+#-= # References
 - [HD-BET: Automated Brain Extraction](https://github.com/MIC-DKFZ/HD-BET)
 - [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion)
