@@ -114,6 +114,3 @@ BibTex
 ## References
 - [HD-BET: Automated Brain Extraction](https://github.com/MIC-DKFZ/HD-BET)
 - [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion)
-#-= # References
-- [HD-BET: Automated Brain Extraction](https://github.com/MIC-DKFZ/HD-BET)
-- [Latent Diffusion Models](https://github.com/CompVis/latent-diffusion)
